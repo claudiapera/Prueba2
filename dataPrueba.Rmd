@@ -10,6 +10,15 @@ knitr::opts_chunk$set(echo = TRUE)
 ## 
 
 ```{r}
+library(ggplot2)
+library(gridExtra)
+library(tidyr)
+library(plotly)
+library(ggrepel)
 
+##CHANGE THIS: the path to load peak matrix - remember! it ends in .zip if generated with rMSIproc, and ends in .pkmat if generated with rMSI2
+pks <- rMSI2::LoadPeakMatrix("/home/guest/msidata2/merged-peakmatrix.pkmat")
+
+tic_data <- pks$intensity/pks$normalizations$TIC
 ```
 

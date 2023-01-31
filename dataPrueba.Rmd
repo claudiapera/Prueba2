@@ -7,8 +7,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## 
-
+#Cargar data
 ```{r}
 library(ggplot2)
 library(gridExtra)
@@ -20,5 +19,50 @@ library(ggrepel)
 pks <- rMSI2::LoadPeakMatrix("/home/guest/msidata2/merged-peakmatrix.pkmat")
 
 tic_data <- pks$intensity/pks$normalizations$TIC
+
+##CHANGE THIS: modifiy "new names" to write the names that you want to see appearing as the name of tha sample. IMPORTANT! The order has to be the same as in pks$names. You can print pks$names in the console to see what it is the original order
+new_names <- c("TOP slide", "MIDDLE slide") #Renombrar
+
+#pks$newnames <- as.factor(new_names)
+region <- unlist(sapply(1:length(new_names), function(x){rep(new_names[x], pks$numPixels[x])})) #vector 
+#Pks$numpizel tiene dos valores que nos dice cuantos pixels tiene cada muestra, la Top 16231 ptiene y la Middle tiene 17705 p 
+pks$region <- as.factor(region) #Añadimos este vector nuevo en la matrix, para que me diga cada pixel a cual corresponde si ha middle o top. 
+##CHANGE THIS: the order in which you want the samples to appear. You have to do that by using the names that appear in pks$names
+#order <- c("0315_pos_DAN_liverhomo_6A_matrix-only-proc", "0315_neg_DAN_liverhomo_6A_matrix-only-proc",
+           #"0315_pos_DAN_liverhomo_6A_10min-proc", "0315_neg_DAN_liverhomo_6A_10min-proc")
+
+##CHANGE THIS: Put the new names in the order in which the samples should appear
+#order_names <- c("6,000 A POS (matrix)", "6,000 A NEG (matrix)", "6,000 A POS", "6,000 A NEG")
+
+
+#rMSI2::plotPeakImage(pks, 500)
 ```
+
+# TIC accross all samples
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+##No need to change anything here
+
+df_tic <- data.frame(
+  names = pks$region,
+  tic = pks$normalizations$TIC,
+  rms = pks$normalizations$RMS
+)
+#TIC
+bx <- ggplot() + geom_boxplot(aes(x = df_tic$names, y = df_tic$tic)) + xlab("Thickness in nm") + ylab("Total intensity") +
+  geom_jitter(aes(x = df_tic$names, y = df_tic$tic), color = "red", alpha = 0.2, size = 0.4) + ggtitle("Total TIC")
+bx
+
+rMSIproc::plotValuesImage(pks, pks$normalizations$TIC, labels = new_names, scale_title = "Total TIC in each pixel")
+
+#RMS
+ggplot(df_tic, aes(df_tic$names, df_tic$rms))+
+  geom_boxplot()+
+  geom_jitter(width=0.5, alpha=0.2)+
+  ggtitle("RMS")
+
+rMSIproc::plotValuesImage(pks, pks$normalizations$RMS, labels = new_names, scale_title = "RMS")
+
+```
+
 

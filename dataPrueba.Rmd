@@ -65,4 +65,177 @@ rMSIproc::plotValuesImage(pks, pks$normalizations$RMS, labels = new_names, scale
 
 ```
 
+# Average spectra of the samples
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+## CHANGE THIS: This creates an empty data frame. The data frame should have as many columns with "int" as samples you want to compare, plus one for the total intensity (in this examples, there were 6 samples to compare)
+df <- data.frame(mass = pks$mass,
+                 int_fresh = rep(NA, length(pks$mass)),#create as many of these columns as samples you have
+                 int_frozen = rep(NA, length(pks$mass)),
+                 int = rep(NA, length(pks$mass)))
 
+#CHANGE THIS: This expresion "levels(pks$region)[x]" indicates in which order the sample was in the original peak matrix. In this example, the sample that we want to appear first (40 sec _ 1) appeared in the 6th position in pks$names. Change the "x" in "levels(pks$region)[x]" accordingly
+for( i in 1:length(pks$mass))
+{
+  df$int_fresh[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[1]), i]) 
+  df$int_frozen[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[2]), i])
+  df$int[i] <- mean(pks$intensity[i])
+}
+
+
+df_long<- gather(df, region, intensity, int_fresh:int_frozen, factor_key=TRUE)
+box_names <- c(int_fresh = new_names[1], int_frozen = new_names[2])
+q <- ggplot(data = df_long) +
+  geom_segment(aes(x=df_long$mass, y=df_long$intensity, xend = df_long$mass, yend = 0)) + theme_light() + ylab("Intensity") + xlab("m/z") + facet_grid(df_long$region ~ ., labeller = as_labeller(box_names))
+q 
+v <- ggplot(data = df_long) +
+  geom_segment(aes(x=df_long$mass, y=df_long$intensity, xend = df_long$mass, yend = 0)) + theme_light() + ylab("Intensity") + xlab("m/z") + facet_grid(~df_long$region , labeller = as_labeller(box_names))
+v 
+#ggplotly(v)
+```
+#Ion images and boxplots of the intensity of the ten most intense ions (not isotopes)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+##No need to change anything here
+
+isotop <- rMSIproc:::isotopeAnnotation(pks, 2, 5, scoreThreshold = 0.8)
+monoiso_index <- isotop$monoisotopicPeaks #index de los monoisotopos
+monoiso_mass <- pks$mass[monoiso_index] # cogemos las masas de esos index
+df_selec_ions <-  df[monoiso_index, ]  #cogemos toda las columnas decada una de las masas 
+df_selec_ions <- df_selec_ions[order(df_selec_ions1$int, decreasing = TRUE),] #ordenamos de mas intenso a menos
+
+#ten_mostintense <- head(df_selec_ions , 10)
+#ten_mostintense
+ten_lessintense <-tail(df_selec_ions,10) #los ultimos 10
+ten_lessintense
+for (i in 1:length(ten_lessintense$mass)){
+rMSIproc::plotPeakImage(pks, ten_lessintense$mass[i], labels = new_names)
+}
+
+pks$region <- factor(pks$region, levels = new_names)
+
+for (i in 1:length(ten_lessintense$mass)){
+f <- ggplot() + geom_boxplot(aes(x=pks$region, y=pks$intensity[, which(pks$mass==ten_lessintense$mass[i])])) +
+  geom_jitter(aes(x=pks$region, y=pks$intensity[, which(pks$mass==ten_lessintense$mass[i])]), color = "blue", size = 0.4, alpha = 0.2) +
+  ylab("Intensity") +
+  xlab("Sample name") +
+  ggtitle(paste("Intensity of ion", round(ten_lessintense$mass[i], 4))) +
+  theme_light()
+print(f)
+}
+```
+
+##Volcano plot 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#levels(pks$region)
+# "8,000 A FRESH"  "8,000 A FROZEN"  
+
+
+threshold_fc = 2
+threshold_p = 0.05
+
+var1_title <- "TOP slide"
+var2_title <- "MIDDLE slide"
+
+var1  <- pks$intensity[pks$region == var1_title, ] #POS matrix
+var2  <- pks$intensity[pks$region == var2_title, ] #POS
+
+foldchange_log2 <- function(var1, var2)
+{
+  mv1 <- mean(var1)
+  mv2 <- mean(var2)
+  return (log2(mv2/mv1))
+}
+
+dfFC <- data.frame (mzID = 1:length(pks$mass),
+                    mz = pks$mass,
+                    meanint_1 = rep(NA, length(pks$mass)),
+                    meanint_2 = rep(NA, length(pks$mass)),
+                    FC = rep(NA, length(pks$mass)),
+                    pval = rep(NA, length(pks$mass)))
+
+for( i in 1:length(pks$mass))
+{
+  dfFC$meanint_1[i] <- var1[ ,i]
+  dfFC$meanint_2[i] <- var2[ ,i]
+  dfFC$FC[i] <- foldchange_log2(var1[, i], var2[ , i] )
+  dfFC$pval[i] <- kruskal.test(list( var1[, i], var2[ , i]))$p.value
+  dfFC$threshold_fc[i] <- (abs(dfFC$FC[i]) >= threshold_fc)
+  dfFC$threshold_pval[i] <- dfFC$pval[i] <= threshold_p
+  dfFC$threshold[i] <- all(dfFC$threshold_pval[i], dfFC$threshold_fc[i])
+ }
+
+sel_dfFC <- dfFC[dfFC$threshold==TRUE, ]
+
+
+vol <- ggplot(data = dfFC, aes(x=FC, y =-log10(dfFC$pval))) + geom_point(aes(colour=dfFC$threshold, mapping = pks$mass), alpha=0.75, size=1.75) + theme_light() + xlab("fold change") + ylab("-log10 p-value") + ggtitle(paste("Volcano plot:", var1_title,  "(left) vs", var2_title, "(right)")) + scale_color_discrete(name = "Threshold")
+
+vol + geom_text_repel(data = sel_dfFC, aes(x= sel_dfFC$FC, y=-log10(sel_dfFC$pval), label = round(sel_dfFC$mz, 4)), colour = "grey")
+
+s <- ggplot() +
+    geom_segment(aes(x=df$mass, y=df$int_fresh, xend = df$mass, yend = 0), colour = "red") + 
+    geom_segment(aes(x=df$mass, y=df$int_frozen*(-1), xend = df$mass, yend = 0), colour = "blue") +
+    geom_segment(aes(x=sel_dfFC$mz, y=sel_dfFC$meanint_1, xend = sel_dfFC$mz, yend = 0), colour = "green") + 
+    theme_light() + ylab("Intensity") + xlab("m/z") +
+    annotate(geom = "text", label = var1_title, color = "red", x = 500, y = max(df$int_fresh)) + 
+    annotate(geom = "text", label = var2_title, color = "blue", x = 500, y = min(df$int_frozen * (-1)))
+  
+s
+
+print("m/z that are significantly different between Top and Middle slide")
+knitr::kable(sel_dfFC[,2])
+
+#for (i in 1:length(sel_dfFC$mz)){
+#  select <- which(pks$region == var1_title | pks$region == var2_title) 
+#f <- ggplot() + geom_boxplot(aes(x=pks$region[select], y=pks$intensity[select, which(pks$mass==sel_dfFC$mz[i])])) +
+#  geom_jitter(aes(x=pks$region[select], y=pks$intensity[select, which(pks$mass==sel_dfFC$mz[i])]), color = "blue", size = 0.4, alpha = 0.2) +
+#  ylab("Intensity") +
+#  xlab("Sample name") +
+#  ggtitle(paste("Intensity of ion", round(pks$mass==sel_dfFC$mz[i], 4))) +
+#  theme_light()
+#print(f)
+#}
+
+#for (i in 1:length(sel_dfFC$mz)){
+# rMSIproc::plotPeakImage(pks, sel_dfFC$mz[i], labels = new_names)
+#}
+
+
+```
+## Images for the five most up-regulated ions
+```{r warning = FALSE}
+for( i in nrow(dfFC):(nrow(dfFC)-4))
+{
+  rMSI2::plotPeakImage(pks, mz = dfFC$mz[i], normalization = "RMS",labels = new_names)
+}
+```
+##PCs and Clusters (TIC)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ticData <- pks$intensity/pks$normalizations$TIC
+nonorm <- pks$intensity
+
+normalized_data <- ticData
+
+pca <- prcomp(normalized_data, center = T, scale. = T)
+
+plotpca <- rMSIproc::plotValuesImage(pks, pca$x[,1], labels = new_names, scale_title = "TIC PC1")
+plotpca <- rMSIproc::plotValuesImage(pks, pca$x[,2], labels = new_names, scale_title = "TIC PC2")
+plotpca <- rMSIproc::plotValuesImage(pks, pca$x[,3], labels = new_names, scale_title = "TIC PC3")
+
+x_PC <- 1
+y_PC <- 2
+variX <- 100*((pca$sdev[x_PC])^2/sum(pca$sdev^2))
+variY <- 100*((pca$sdev[y_PC])^2/sum(pca$sdev^2))
+pltDF <- data.frame( xPC = pca$x[,x_PC], yPC = pca$x[,y_PC], sample = pks$region)
+pltDFrandomized <- pltDF[sample(nrow(pltDF)), ] #Randomize rows to get a better plot
+
+bi_1 <- ggplot( data = pltDFrandomized, aes( x = xPC, y = yPC))
+bi_1_ <- bi_1 + theme_light()
+bi_1 <- bi_1 + geom_point( aes( colour = sample), alpha = 0.5, size = 2)
+bi_1 <- bi_1 + scale_x_continuous(name = paste0("PC", x_PC, " (", round(variX, digits = 2), "%)"))
+bi_1 <- bi_1 + scale_y_continuous(name = paste0("PC", y_PC, " (", round(variY, digits = 2), "%)"))
+bi_1 <- bi_1 + ggtitle(paste0("TIC PC", x_PC, " vs. PC", y_PC, " TIC CENTER SCALE TRUE"))
+bi_1 + theme_light()
+
+clus <- kmeans(ticData, 4)
+mclors <- rMSIproc::plotClusterImage(pks, clus$cluster)
+
+```

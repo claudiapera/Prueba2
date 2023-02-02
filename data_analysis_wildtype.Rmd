@@ -7,22 +7,55 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Load data
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r}
+library(ggplot2)
+library(gridExtra)
+library(tidyr)
+library(plotly)
+library(ggrepel)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
+##CHANGE THIS: the path to load peak matrix - remember! it ends in .zip if generated with rMSIproc, and ends in .pkmat if generated with rMSI2
+pks <- rMSI2::LoadPeakMatrix("/home/guest/msidata2/TFG_Claudia/Procesado/merged-peakmatrix.pkmat")
+
+tic_data <- pks$intensity/pks$normalizations$TIC
+
+##CHANGE THIS: modifiy "new names" to write the names that you want to see appearing as the name of tha sample. IMPORTANT! The order has to be the same as in pks$names. You can print pks$names in the console to see what it is the original order
+new_names <- c("WTHFD", "WTCT")
+
+#pks$newnames <- as.factor(new_names)
+region <- unlist(sapply(1:length(new_names), function(x){rep(new_names[x], pks$numPixels[x])}))
+pks$region <- as.factor(region)
+
+##CHANGE THIS: the order in which you want the samples to appear. You have to do that by using the names that appear in pks$names
+#order <- c("0315_pos_DAN_liverhomo_6A_matrix-only-proc", "0315_neg_DAN_liverhomo_6A_matrix-only-proc",
+           #"0315_pos_DAN_liverhomo_6A_10min-proc", "0315_neg_DAN_liverhomo_6A_10min-proc")
+
+##CHANGE THIS: Put the new names in the order in which the samples should appear
+#order_names <- c("6,000 A POS (matrix)", "6,000 A NEG (matrix)", "6,000 A POS", "6,000 A NEG")
+
+
+#rMSI2::plotPeakImage(pks, 500)
 ```
 
-## Including Plots
+# TIC accross all samples
 
-You can also embed plots, for example:
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+##No need to change anything here
+
+df_tic <- data.frame(
+  names = pks$region,
+  tic = pks$normalizations$TIC
+)
+
+bx <- ggplot() + geom_boxplot(aes(x = df_tic$names, y = df_tic$tic)) + xlab("Thickness in nm") + ylab("Total intensity") +
+  geom_jitter(aes(x = df_tic$names, y = df_tic$tic), color = "red", alpha = 0.2, size = 0.4) + ggtitle("Total TIC")
+bx
+
+rMSIproc::plotValuesImage(pks, pks$normalizations$TIC, labels = new_names, scale_title = "Total TIC in each pixel")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+

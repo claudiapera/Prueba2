@@ -235,7 +235,7 @@ bi_1 <- bi_1 + scale_y_continuous(name = paste0("PC", y_PC, " (", round(variY, d
 bi_1 <- bi_1 + ggtitle(paste0("TIC PC", x_PC, " vs. PC", y_PC, " TIC CENTER SCALE TRUE"))
 bi_1 + theme_light()
 
-clus <- kmeans(ticData, 4)
+clus <- kmeans(ticData, 8)
 mclors <- rMSIproc::plotClusterImage(pks, clus$cluster)
 
 ```

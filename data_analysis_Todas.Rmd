@@ -1,0 +1,288 @@
+---
+title: "data_analysis_12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load data
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+library(tidyr)
+library(plotly)
+library(ggrepel)
+
+
+##CHANGE THIS: the path to load peak matrix - remember! it ends in .zip if generated with rMSIproc, and ends in .pkmat if generated with rMSI2
+pks <- rMSI2::LoadPeakMatrix("/home/guest/msidata2/TFG_Claudia/Procesado/analysisTodas/merged-peakmatrix.pkmat")
+
+tic_data <- pks$intensity/pks$normalizations$TIC
+
+##CHANGE THIS: modifiy "new names" to write the names that you want to see appearing as the name of tha sample. IMPORTANT! The order has to be the same as in pks$names. You can print pks$names in the console to see what it is the original order
+#nom<-strsplit(pks$names[1],"_")
+#str_split(nom," ")
+#new_names <- c("WTHFD", "KOHFD")
+#new_names <- c("WTHFD_2", "WTHFD_3", "KOHFD_1", "KOHFD_2", "KOHFD_3", "KOHFD_4", "WTCT_1", "WTCT_2", "WTCT_3", "KOCT_2", "KOCT_3", "KOCT_4")
+
+#write.csv(pks$names, "/home/guest/msidata2/TFG_Claudia/Procesado/analysisTodas/nombres.csv", row.names=FALSE)
+
+new_datos <-read.csv("/home/guest/msidata2/TFG_Claudia/Procesado/analysisTodas/nombres.csv", header = FALSE, sep = ",")
+
+new_nombres <- as.vector(new_datos[1]$V1)
+
+region <- unlist(sapply(1:length(new_nombres), function(x){rep(new_nombres[x], pks$numPixels[x])}))
+pks$region <- as.factor(region)
+
+categoria <- as.vector(new_datos[2]$V2)
+
+
+tipo <- unlist(sapply(1:length(categoria), function(x){rep(categoria[x], pks$numPixels[x])}))
+pks$tipo <- as.factor(tipo)
+
+##CHANGE THIS: the order in which you want the samples to appear. You have to do that by using the names that appear in pks$names
+#order <- c("0315_pos_DAN_liverhomo_6A_matrix-only-proc", "0315_neg_DAN_liverhomo_6A_matrix-only-proc",
+           #"0315_pos_DAN_liverhomo_6A_10min-proc", "0315_neg_DAN_liverhomo_6A_10min-proc")
+
+##CHANGE THIS: Put the new names in the order in which the samples should appear
+#order_names <- c("6,000 A POS (matrix)", "6,000 A NEG (matrix)", "6,000 A POS", "6,000 A NEG")
+
+
+#rMSI2::plotPeakImage(pks, 500)
+```
+
+# TIC accross all samples
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+##No need to change anything here
+
+df_tic <- data.frame(
+  names = pks$region,
+  tic = pks$normalizations$TIC
+)
+
+bx <- ggplot() + geom_boxplot(aes(x = df_tic$names, y = df_tic$tic)) + xlab("Thickness in nm") + ylab("Total intensity") +
+  geom_jitter(aes(x = df_tic$names, y = df_tic$tic), color = "red", alpha = 0.2, size = 0.4) + ggtitle("Total TIC")
+bx
+
+rMSIproc::plotValuesImage(pks, pks$normalizations$TIC, labels = new_nombres, scale_title = "Total TIC in each pixel")
+```
+
+# Average spectra of the samples
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+## CHANGE THIS: This creates an empty data frame. The data frame should have as many columns with "int" as samples you want to compare, plus one for the total intensity (in this examples, there were 6 samples to compare)
+df <- data.frame(mass = pks$mass,
+                 int_WTHFD_2 = rep(NA, length(pks$mass)),#create as many of these columns as samples you have
+                 int_WTHFD_3 = rep(NA, length(pks$mass)),
+                 int_KOHFD_1 = rep(NA, length(pks$mass)),
+                 int_KOHFD_2 = rep(NA, length(pks$mass)),
+                 int_KOHFD_3 = rep(NA, length(pks$mass)),
+                 int_KOHFD_4 = rep(NA, length(pks$mass)),
+                 int_WTCT_1 = rep(NA, length(pks$mass)),
+                 int_WTCT_2 = rep(NA, length(pks$mass)),
+                 int_WTCT_3 = rep(NA, length(pks$mass)),
+                 int_KOCT_2 = rep(NA, length(pks$mass)),
+                 int_KOCT_3 = rep(NA, length(pks$mass)),
+                 int_KOCT_4 = rep(NA, length(pks$mass)),
+                 int = rep(NA, length(pks$mass)))
+
+#("WTHFD_2", "WTHFD_3", "KOHFD_1", "KOHFD_2", "KOHFD_3", "KOHFD_4", "WTCT_1", "WTCT_2", "WTCT_3", "KOCT_2", "KOCT_3", "KOCT_4")
+
+#CHANGE THIS: This expresion "levels(pks$region)[x]" indicates in which order the sample was in the original peak matrix. In this example, the sample that we want to appear first (40 sec _ 1) appeared in the 6th position in pks$names. Change the "x" in "levels(pks$region)[x]" accordingly
+for( i in 1:length(pks$mass))
+{
+  df$int_KOCT_2[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[1]), i]) 
+  df$int_KOCT_3[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[2]), i])
+  df$int_KOCT_4[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[3]), i])
+  df$int_KOHFD_1[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[4]), i])
+  df$int_KOHFD_2[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[5]), i])
+  df$int_KOHFD_3[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[6]), i])
+  df$int_KOHFD_4[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[7]), i])
+  df$int_WTCT_1[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[8]), i])
+  df$int_WTCT_2[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[9]), i])
+  df$int_WTCT_3[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[10]), i])
+  df$int_WTHFD_2[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[11]), i])
+  df$int_WTHFD_3[i] <- mean(pks$intensity[which(pks$region==levels(pks$region)[12]), i])
+  df$int[i] <- mean(pks$intensity[i])
+}
+
+df_long<- gather(df, region, intensity, int_WTHFD_2:int_KOCT_4, factor_key=TRUE)
+box_names <- c(int_WTHFD_2 = new_names[1], int_WTHFD_3 = new_names[2], int_KOHFD_1= new_names[3], int_KOHFD_2=new_names[4],int_KOHFD_3 = new_names[5], int_KOHFD_4 = new_names[6], int_WTCT_1= new_names[7], int_WTCT_2=new_names[8],int_WTCT_3 = new_names[9], int_KOCT_2 = new_names[10], int_KOCT_3= new_names[11], int_KOCT_4=new_names[12])
+
+q <- ggplot(data = df_long) +
+  geom_segment(aes(x=df_long$mass, y=df_long$intensity, xend = df_long$mass, yend = 0)) + theme_light() + ylab("Intensity") + xlab("m/z") + facet_grid(df_long$region ~ ., labeller = as_labeller(box_names))
+q 
+v <- ggplot(data = df_long) +
+  geom_segment(aes(x=df_long$mass, y=df_long$intensity, xend = df_long$mass, yend = 0)) + theme_light() + ylab("Intensity") + xlab("m/z") + facet_grid(~df_long$region , labeller = as_labeller(box_names))
+v 
+#ggplotly(v)
+
+#Representar dividido
+#6 Primeras muestras
+df_long2<- gather(df, region, intensity, int_WTHFD_2:int_KOHFD_4, factor_key=TRUE)
+box_names2 <- c(int_WTHFD_2 = new_names[1], int_WTHFD_3 = new_names[2], int_KOHFD_1= new_names[3], int_KOHFD_2=new_names[4],int_KOHFD_3 = new_names[5], int_KOHFD_4 = new_names[6])
+
+graf1 <- ggplot(data = df_long2) +
+  geom_segment(aes(x=df_long2$mass, y=df_long2$intensity, xend = df_long2$mass, yend = 0)) + theme_light() + ylab("Intensity") + xlab("m/z") + facet_grid(df_long2$region ~ ., labeller = as_labeller(box_names))
+graf1 
+
+graf1v <- ggplot(data = df_long2) +
+  geom_segment(aes(x=df_long2$mass, y=df_long2$intensity, xend = df_long2$mass, yend = 0)) + theme_light() + ylab("Intensity") + xlab("m/z") + facet_grid(~df_long2$region , labeller = as_labeller(box_names))
+graf1v
+
+#6 Siguientes
+df_long3<- gather(df, region, intensity, int_WTCT_1:int_KOCT_4, factor_key=TRUE)
+box_names3 <- c(int_WTCT_1= new_names[7], int_WTCT_2=new_names[8],int_WTCT_3 = new_names[9], int_KOCT_2 = new_names[10], int_KOCT_3= new_names[11], int_KOCT_4=new_names[12])
+
+graf2 <- ggplot(data = df_long3) +
+  geom_segment(aes(x=df_long3$mass, y=df_long3$intensity, xend = df_long3$mass, yend = 0)) + theme_light() + ylab("Intensity") + xlab("m/z") + facet_grid(df_long3$region ~ ., labeller = as_labeller(box_names))
+graf2 
+
+graf2v <- ggplot(data = df_long3) +
+  geom_segment(aes(x=df_long3$mass, y=df_long3$intensity, xend = df_long3$mass, yend = 0)) + theme_light() + ylab("Intensity") + xlab("m/z") + facet_grid(~df_long3$region , labeller = as_labeller(box_names))
+graf2v
+
+```
+
+#Ion images and boxplots of the intensity of the ten most intense ions (not isotopes)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+##No need to change anything here
+
+isotop <- rMSIproc:::isotopeAnnotation(pks, 2, 5, scoreThreshold = 0.8)
+monoiso_index <- isotop$monoisotopicPeaks #index de los monoisotopos
+monoiso_mass <- pks$mass[monoiso_index] # cogemos las masas de esos index
+df_selec_ions <-  df[monoiso_index, ]  #cogemos toda las columnas decada una de las masas 
+df_selec_ions <- df_selec_ions[order(df_selec_ions$int, decreasing = TRUE),] #ordenamos de mas intenso a menos
+
+ten_mostintense <- head(df_selec_ions , 10)
+ten_mostintense
+#ten_lessintense <-tail(df_selec_ions,10) #los ultimos 10
+#ten_lessintense
+for (i in 1:length(ten_mostintense$mass)){
+rMSIproc::plotPeakImage(pks, ten_mostintense$mass[i], labels = new_names)
+}
+
+pks$region <- factor(pks$region, levels = new_names)
+
+for (i in 1:length(ten_mostintense$mass)){
+f <- ggplot() + geom_boxplot(aes(x=pks$region, y=pks$intensity[, which(pks$mass==ten_mostintense$mass[i])])) +
+  geom_jitter(aes(x=pks$region, y=pks$intensity[, which(pks$mass==ten_mostintense$mass[i])]), color = "blue", size = 0.4, alpha = 0.2) +
+  ylab("Intensity") +
+  xlab("Sample name") +
+  ggtitle(paste("Intensity of ion", round(ten_mostintense$mass[i], 4))) +
+  theme_light()
+print(f)
+}
+```
+
+##Volcano plot 
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+#levels(pks$region)
+# "8,000 A FRESH"  "8,000 A FROZEN"  
+
+####PREPARAR DATAFRAME PARA VOLCANO
+df_tipo<-data.frame(mass=pks$mass,
+                 int_WT= rep(NA, length(pks$mass)),
+                 int_KO= rep(NA, length(pks$mass)),
+                 int = rep(NA, length(pks$mass)))
+
+for( i in 1:length(pks$mass))
+{
+  df_tipo$int_WT[i] <-mean(pks$intensity[which(pks$tipo=="WT"), i])
+  df_tipo$int_KO[i] <-mean(pks$intensity[which(pks$tipo=="KO"), i])
+  df_tipo$int[i] <- mean(pks$intensity[i]) 
+  
+}
+
+threshold_fc = 2
+threshold_p = 0.05
+
+var1_title <- "WT"
+var2_title <- "KO"
+
+#### PRUEBAS
+#var1  <- pks$intensity[var1_title %in% pks$region , ] #POS matrix
+
+#varKO  <- pks$intensity[pks$region =="KOHFD_3", ]#pks$region == "WTHFD_2"|"WTHFD_3", ] #POS str_view(x,"an")
+
+#varWCT  <- pks$intensity[pks$region =="WTCT_1", ]
+
+#var1  <- pks$intensity[pks$region == "WTHFD_2" , ] 
+#varp <- pks$intensity[pks$region == "WTHFD_3" , ]
+#varWT<- rbind(var1,varp)  #juntamos las dos muestras de WTHFD en una 
+
+##### SEGUN CATEGORIA
+v1 <-pks$intensity[pks$tipo =="WT", ]
+v2 <-pks$intensity[pks$tipo =="KO", ]
+
+foldchange_log2 <- function(var1, var2)
+{
+  mv1 <- mean(var1)
+  mv2 <- mean(var2)
+  return (log2(mv2/mv1))
+}
+
+dfFC <- data.frame (mzID = 1:length(pks$mass),
+                    mz = pks$mass,
+                    meanint_1 = rep(NA, length(pks$mass)),
+                    meanint_2 = rep(NA, length(pks$mass)),
+                    FC = rep(NA, length(pks$mass)),
+                    pval = rep(NA, length(pks$mass)))
+
+#VOLCANO varWT vs varWCT
+for( i in 1:length(pks$mass))
+{
+  dfFC$meanint_1[i] <- v1[ ,i]
+  dfFC$meanint_2[i] <- v2[ ,i]
+  dfFC$FC[i] <- foldchange_log2(v1[, i], v2[ , i] )
+  dfFC$pval[i] <- kruskal.test(list( v1[, i], v2[ , i]))$p.value
+  dfFC$threshold_fc[i] <- (abs(dfFC$FC[i]) >= threshold_fc)
+  dfFC$threshold_pval[i] <- dfFC$pval[i] <= threshold_p
+  dfFC$threshold[i] <- all(dfFC$threshold_pval[i], dfFC$threshold_fc[i])
+ }
+
+sel_dfFC <- dfFC[dfFC$threshold==TRUE, ]
+
+
+vol <- ggplot(data = dfFC, aes(x=FC, y =-log10(dfFC$pval))) + geom_point(aes(colour=dfFC$threshold, mapping = pks$mass), alpha=0.75, size=1.75) + theme_light() + xlab("fold change") + ylab("-log10 p-value") + ggtitle(paste("Volcano plot:", var1_title,  "(left) vs", var2_title, "(right)")) + scale_color_discrete(name = "Threshold")
+
+vol + geom_text_repel(data = sel_dfFC, aes(x= sel_dfFC$FC, y=-log10(sel_dfFC$pval), label = round(sel_dfFC$mz, 4)), colour = "grey")
+
+s <- ggplot() +
+    geom_segment(aes(x=df_tipo$mass, y=df_tipo$int_WT, xend = df_tipo$mass, yend = 0), colour = "red") + 
+    geom_segment(aes(x=df_tipo$mass, y=df_tipo$int_KO*(-1), xend = df_tipo$mass, yend = 0), colour = "blue") +
+    geom_segment(aes(x=sel_dfFC$mz, y=sel_dfFC$meanint_1, xend = sel_dfFC$mz, yend = 0), colour = "green") + 
+    theme_light() + ylab("Intensity") + xlab("m/z") +
+    annotate(geom = "text", label = var1_title, color = "red", x = 500, y = max(df_tipo$int_WT)) + 
+    annotate(geom = "text", label = var2_title, color = "blue", x = 500, y = min(df_tipo$int_KO * (-1)))
+  
+s
+
+print("m/z that are significantly different between WTHFD and KOHFD")
+knitr::kable(sel_dfFC[,2])
+
+#for (i in 1:length(sel_dfFC$mz)){
+#  select <- which(pks$region == var1_title | pks$region == var2_title) 
+#f <- ggplot() + geom_boxplot(aes(x=pks$region[select], y=pks$intensity[select, which(pks$mass==sel_dfFC$mz[i])])) +
+#  geom_jitter(aes(x=pks$region[select], y=pks$intensity[select, which(pks$mass==sel_dfFC$mz[i])]), color = "blue", size = 0.4, alpha = 0.2) +
+#  ylab("Intensity") +
+#  xlab("Sample name") +
+#  ggtitle(paste("Intensity of ion", round(pks$mass==sel_dfFC$mz[i], 4))) +
+#  theme_light()
+#print(f)
+#}
+
+#for (i in 1:length(sel_dfFC$mz)){
+# rMSIproc::plotPeakImage(pks, sel_dfFC$mz[i], labels = new_names)
+#}
+
+
+
+```
